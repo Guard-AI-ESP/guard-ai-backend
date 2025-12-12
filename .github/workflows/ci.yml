@@ -1,0 +1,14 @@
+name: CI
+
+on:
+  pull_request:
+  push:
+    branches: [dev, main]
+
+jobs:
+  python-ci:
+    uses: Guard-AI-ESP/guard-ai-devx/.github/workflows/python-ci.yml@main
+    with:
+      python-version: "3.12"
+      working-directory: "."
+      run-tests: true
