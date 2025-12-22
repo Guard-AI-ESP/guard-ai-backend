@@ -1,5 +1,5 @@
-use axum::{routing::post, Json, Router};
 use crate::models::event::{IngestEventsRequest, IngestEventsResponse};
+use axum::{routing::post, Json, Router};
 
 pub fn router() -> Router {
     Router::new().route("/events", post(ingest_events))
