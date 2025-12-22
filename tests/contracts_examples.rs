@@ -6,7 +6,7 @@ use guard_ai_backend::models::event::EventV1;
 #[test]
 fn examples_should_deserialize() {
     // Les exemples doivent être accessibles via submodule: contracts/events/v1/examples
-    let pattern = "contracts/events/v1/examples/*.json";
+    let pattern = "contracts/guard-ai-contracts/events/v1/examples/*.json";
     let mut count = 0;
 
     for entry in glob(pattern).expect("invalid glob pattern") {
