@@ -1,0 +1,5 @@
+.DS_Store
+
+# Ignore test output files
+/tests/output/
+/target/

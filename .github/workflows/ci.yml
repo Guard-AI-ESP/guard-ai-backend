@@ -6,9 +6,26 @@ on:
     branches: [dev, main]
 
 jobs:
-  python-ci:
-    uses: Guard-AI-ESP/guard-ai-devx/.github/workflows/python-ci.yml@main
-    with:
-      python-version: "3.12"
-      working-directory: "."
-      run-tests: true
+  rust-ci:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt, clippy
+
+      - name: Format
+        run: cargo fmt --check
+
+      - name: Lint
+        run: cargo clippy -- -D warnings
+
+      - name: Tests
+        run: cargo test
+
+      - name: Build
+        run: cargo build --release
+      
