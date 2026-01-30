@@ -101,10 +101,12 @@ impl EventRepository {
         query.push_str(" ORDER BY timestamp DESC");
 
         let limit = filter.limit.unwrap_or(100);
-        query.push_str(&format!(" LIMIT {}", limit));
+        query.push_str(" LIMIT ?");
+        bindings.push(limit.to_string());
 
         if let Some(offset) = filter.offset {
-            query.push_str(&format!(" OFFSET {}", offset));
+            query.push_str(" OFFSET ?");
+            bindings.push(offset.to_string());
         }
 
         let mut sqlx_query = sqlx::query_as::<_, EventRow>(&query);
