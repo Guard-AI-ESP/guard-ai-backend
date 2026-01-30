@@ -51,3 +51,28 @@ pub struct IngestEventsResponse {
     pub accepted: usize,
     pub rejected: usize,
 }
+
+/// Paramètres de query pour GET /v1/events
+#[derive(Debug, Clone, Deserialize, Default)]
+pub struct EventQueryParams {
+    pub site_id: Option<Uuid>,
+    pub source: Option<EventSource>,
+    pub severity: Option<Severity>,
+    pub from: Option<String>,
+    pub to: Option<String>,
+    pub limit: Option<i64>,
+    pub offset: Option<i64>,
+}
+
+/// Réponse paginée pour GET /v1/events
+#[derive(Debug, Clone, Serialize)]
+pub struct EventsListResponse {
+    pub events: Vec<EventV1>,
+    pub count: usize,
+}
+
+/// Réponse pour GET /v1/events/:id
+#[derive(Debug, Clone, Serialize)]
+pub struct EventResponse {
+    pub event: EventV1,
+}
