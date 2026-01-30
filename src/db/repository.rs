@@ -160,8 +160,20 @@ struct EventRow {
 impl From<EventRow> for EventV1 {
     fn from(row: EventRow) -> Self {
         EventV1 {
-            event_id: Uuid::parse_str(&row.event_id).unwrap_or_default(),
-            site_id: Uuid::parse_str(&row.site_id).unwrap_or_default(),
+            event_id: Uuid::parse_str(&row.event_id).unwrap_or_else(|err| {
+                eprintln!(
+                    "Failed to parse event_id UUID '{}' from database: {}. Using nil UUID.",
+                    row.event_id, err
+                );
+                Uuid::nil()
+            }),
+            site_id: Uuid::parse_str(&row.site_id).unwrap_or_else(|err| {
+                eprintln!(
+                    "Failed to parse site_id UUID '{}' from database: {}. Using nil UUID.",
+                    row.site_id, err
+                );
+                Uuid::nil()
+            }),
             hub_id: row.hub_id,
             source: serde_json::from_str(&format!("\"{}\"", row.source))
                 .unwrap_or(EventSource::System),
