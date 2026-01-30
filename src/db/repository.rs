@@ -176,10 +176,26 @@ impl From<EventRow> for EventV1 {
             }),
             hub_id: row.hub_id,
             source: serde_json::from_str(&format!("\"{}\"", row.source))
-                .unwrap_or(EventSource::System),
+                .unwrap_or_else(|e| {
+                    log::warn!(
+                        "Invalid EventSource '{}' for event_id '{}': {}. Falling back to EventSource::System.",
+                        row.source,
+                        row.event_id,
+                        e
+                    );
+                    EventSource::System
+                }),
             event_type: row.event_type,
             severity: serde_json::from_str(&format!("\"{}\"", row.severity))
-                .unwrap_or(Severity::Info),
+                .unwrap_or_else(|e| {
+                    log::warn!(
+                        "Invalid Severity '{}' for event_id '{}': {}. Falling back to Severity::Info.",
+                        row.severity,
+                        row.event_id,
+                        e
+                    );
+                    Severity::Info
+                }),
             timestamp: row.timestamp,
             payload: serde_json::from_str(&row.payload).unwrap_or_default(),
             media_ref: row.media_ref,
