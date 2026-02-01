@@ -36,13 +36,6 @@ info() {
     echo -e "${BLUE}[TEST]${NC} $1"
 }
 
-# Fonction pour construire les arguments curl avec authentification si necessaire
-build_curl_args() {
-    if [ -n "$API_KEY" ]; then
-        echo "-H \"X-API-Key: $API_KEY\""
-    fi
-}
-
 # 1. Health Check
 info "Health Check"
 RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/health")

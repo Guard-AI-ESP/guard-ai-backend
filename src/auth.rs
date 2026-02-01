@@ -4,6 +4,7 @@ use axum::{
     middleware::Next,
     response::Response,
 };
+use subtle::ConstantTimeEq;
 
 const API_KEY_HEADER: &str = "X-API-Key";
 
@@ -24,7 +25,9 @@ pub async fn require_api_key(req: Request, next: Next) -> Result<Response, Statu
         .and_then(|v| v.to_str().ok());
 
     match provided_key {
-        Some(key) if key == expected_key => Ok(next.run(req).await),
+        Some(key) if constant_time_eq(key.as_bytes(), expected_key.as_bytes()) => {
+            Ok(next.run(req).await)
+        }
         Some(_) => {
             tracing::warn!("Invalid API key provided");
             Err(StatusCode::UNAUTHORIZED)
@@ -34,6 +37,11 @@ pub async fn require_api_key(req: Request, next: Next) -> Result<Response, Statu
             Err(StatusCode::UNAUTHORIZED)
         }
     }
+}
+
+/// Constant-time comparison to prevent timing attacks
+fn constant_time_eq(a: &[u8], b: &[u8]) -> bool {
+    a.ct_eq(b).into()
 }
 
 #[cfg(test)]

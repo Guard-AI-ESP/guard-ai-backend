@@ -439,22 +439,29 @@ curl -X POST http://localhost:8080/v1/simulate \
   -d '{"count": 3}'
 ```
 
-**Exemple JavaScript**
+**Exemple JavaScript (Node.js avec ws library)**
 
 ```javascript
+const WebSocket = require('ws');
+
 const ws = new WebSocket('ws://localhost:8080/v1/events/stream', {
   headers: {
     'X-API-Key': 'votre-cle-api'
   }
 });
 
-ws.onopen = () => console.log('Connected');
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('Event received:', data);
-};
-ws.onclose = () => console.log('Disconnected');
+ws.on('open', () => console.log('Connected'));
+ws.on('message', (data) => {
+  const event = JSON.parse(data);
+  console.log('Event received:', event);
+});
+ws.on('close', () => console.log('Disconnected'));
 ```
+
+**Note**: Les navigateurs web ne supportent pas les headers personnalisés pour les WebSockets. Pour une authentification depuis un navigateur, vous devrez soit:
+- Passer l'API key en paramètre de requête: `ws://localhost:8080/v1/events/stream?api_key=votre-cle-api`
+- Utiliser le header `Sec-WebSocket-Protocol` pour transmettre le token
+- Implémenter une authentification basée sur les cookies/sessions
 
 ---
 
