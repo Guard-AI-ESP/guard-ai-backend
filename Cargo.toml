@@ -23,6 +23,9 @@ rand = "0.8"
 # Async streams pour WebSocket
 futures-util = "0.3"
 
+# Constant-time comparison for security
+subtle = "2.6"
+
 # SQLx avec support SQLite
 sqlx = { version = "0.8", features = [
     "runtime-tokio",

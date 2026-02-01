@@ -39,31 +39,37 @@ DATABASE_URL="sqlite://custom.db" PORT=3000 cargo run
 |----------|---------|-------------|
 | `DATABASE_URL` | `sqlite://guard-ai.db` | Chemin vers la base SQLite |
 | `PORT` | `8080` | Port du serveur HTTP |
+| `API_KEY` | (none) | Clé d'API pour authentification des endpoints |
 | `RUST_LOG` | `info` | Niveau de log (debug, info, warn, error) |
+
+**Note de sécurité**: Il est fortement recommandé de définir `API_KEY` en production pour protéger les endpoints sensibles. Sans cette variable, l'authentification est désactivée (mode développement uniquement).
 
 ## API Endpoints
 
-| Methode | Endpoint | Description |
-|---------|----------|-------------|
-| GET | `/v1/health` | Health check |
-| POST | `/v1/events` | Ingestion batch d'evenements |
-| GET | `/v1/events` | Liste avec filtres (site_id, source, severity, from, to) |
-| GET | `/v1/events/:id` | Detail d'un evenement par UUID |
-| GET | `/v1/stats` | Statistiques agregees |
-| POST | `/v1/simulate` | Generer des evenements de test |
-| WS | `/v1/events/stream` | WebSocket streaming temps reel |
+Tous les endpoints (sauf `/v1/health`) requièrent une authentification par clé API via le header `X-API-Key`.
+
+| Methode | Endpoint | Description | Auth requise |
+|---------|----------|-------------|--------------|
+| GET | `/v1/health` | Health check | Non |
+| POST | `/v1/events` | Ingestion batch d'evenements | Oui |
+| GET | `/v1/events` | Liste avec filtres (site_id, source, severity, from, to) | Oui |
+| GET | `/v1/events/:id` | Detail d'un evenement par UUID | Oui |
+| GET | `/v1/stats` | Statistiques agregees | Oui |
+| POST | `/v1/simulate` | Generer des evenements de test | Oui |
+| WS | `/v1/events/stream` | WebSocket streaming temps reel | Oui |
 
 Voir [docs/API.md](docs/API.md) pour la documentation complete.
 
 ## Exemples rapides
 
 ```bash
-# Health check
+# Health check (pas d'authentification requise)
 curl http://localhost:8080/v1/health
 
-# Ingerer un evenement
+# Ingerer un evenement (authentification requise)
 curl -X POST http://localhost:8080/v1/events \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: votre-cle-api" \
   -d '{
     "events": [{
       "event_id": "550e8400-e29b-41d4-a716-446655440001",
@@ -79,21 +85,22 @@ curl -X POST http://localhost:8080/v1/events \
   }'
 
 # Lister les evenements
-curl http://localhost:8080/v1/events
+curl -H "X-API-Key: votre-cle-api" http://localhost:8080/v1/events
 
 # Filtrer par source
-curl "http://localhost:8080/v1/events?source=camera&severity=warning"
+curl -H "X-API-Key: votre-cle-api" "http://localhost:8080/v1/events?source=camera&severity=warning"
 
 # Statistiques
-curl http://localhost:8080/v1/stats
+curl -H "X-API-Key: votre-cle-api" http://localhost:8080/v1/stats
 
 # Simuler 10 evenements
 curl -X POST http://localhost:8080/v1/simulate \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: votre-cle-api" \
   -d '{"count": 10}'
 
 # WebSocket (necessite websocat)
-websocat ws://localhost:8080/v1/events/stream
+websocat ws://localhost:8080/v1/events/stream --header="X-API-Key: votre-cle-api"
 ```
 
 ## Tests

@@ -5,6 +5,31 @@ Base URL: `http://localhost:8080/v1`
 
 ---
 
+## Authentification
+
+Tous les endpoints (sauf `/v1/health`) nécessitent une authentification par clé API.
+
+**Header requis:**
+```
+X-API-Key: votre-cle-api
+```
+
+**Configuration:**
+Définissez la variable d'environnement `API_KEY` lors du démarrage du serveur:
+```bash
+API_KEY="votre-cle-api-securisee" cargo run
+```
+
+**Codes d'erreur d'authentification:**
+
+| Code | Description |
+|------|-------------|
+| 401 | Clé API manquante ou invalide |
+
+**Note:** Si `API_KEY` n'est pas configurée, l'authentification est désactivée (mode développement uniquement).
+
+---
+
 ## Table des matieres
 
 - [Health Check](#health-check)
@@ -58,6 +83,7 @@ Ingere un ou plusieurs evenements de securite.
 | Header | Valeur |
 |--------|--------|
 | Content-Type | application/json |
+| X-API-Key | votre-cle-api |
 
 **Request Body**
 
@@ -130,6 +156,7 @@ Ingere un ou plusieurs evenements de securite.
 ```bash
 curl -X POST http://localhost:8080/v1/events \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: votre-cle-api" \
   -d '{
     "events": [{
       "event_id": "550e8400-e29b-41d4-a716-446655440001",
@@ -197,19 +224,19 @@ Recupere la liste des evenements avec filtrage optionnel.
 
 ```bash
 # Tous les evenements
-curl http://localhost:8080/v1/events
+curl -H "X-API-Key: votre-cle-api" http://localhost:8080/v1/events
 
 # Filtrer par source
-curl "http://localhost:8080/v1/events?source=camera"
+curl -H "X-API-Key: votre-cle-api" "http://localhost:8080/v1/events?source=camera"
 
 # Filtrer par severite
-curl "http://localhost:8080/v1/events?severity=critical"
+curl -H "X-API-Key: votre-cle-api" "http://localhost:8080/v1/events?severity=critical"
 
 # Combiner les filtres
-curl "http://localhost:8080/v1/events?source=camera&severity=warning&limit=50"
+curl -H "X-API-Key: votre-cle-api" "http://localhost:8080/v1/events?source=camera&severity=warning&limit=50"
 
 # Pagination
-curl "http://localhost:8080/v1/events?limit=10&offset=20"
+curl -H "X-API-Key: votre-cle-api" "http://localhost:8080/v1/events?limit=10&offset=20"
 ```
 
 ---
@@ -255,7 +282,7 @@ Recupere un evenement specifique par son UUID.
 **Exemple**
 
 ```bash
-curl http://localhost:8080/v1/events/550e8400-e29b-41d4-a716-446655440001
+curl -H "X-API-Key: votre-cle-api" http://localhost:8080/v1/events/550e8400-e29b-41d4-a716-446655440001
 ```
 
 ---
@@ -294,7 +321,7 @@ Recupere les statistiques agregees des evenements.
 **Exemple**
 
 ```bash
-curl http://localhost:8080/v1/stats
+curl -H "X-API-Key: votre-cle-api" http://localhost:8080/v1/stats
 ```
 
 ---
@@ -308,6 +335,7 @@ Genere des evenements de test aleatoires.
 | Header | Valeur |
 |--------|--------|
 | Content-Type | application/json |
+| X-API-Key | votre-cle-api |
 
 **Request Body**
 
@@ -346,11 +374,13 @@ Genere des evenements de test aleatoires.
 # Generer 5 evenements aleatoires
 curl -X POST http://localhost:8080/v1/simulate \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: votre-cle-api" \
   -d '{"count": 5}'
 
 # Generer pour un site specifique
 curl -X POST http://localhost:8080/v1/simulate \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: votre-cle-api" \
   -d '{"count": 10, "site_id": "550e8400-e29b-41d4-a716-446655440002"}'
 ```
 
@@ -366,9 +396,13 @@ Connexion WebSocket pour recevoir les evenements en temps reel.
 ws://localhost:8080/v1/events/stream
 ```
 
+**Authentification**
+
+Le header `X-API-Key` doit être fourni lors de la connexion WebSocket.
+
 **Comportement**
 
-1. Client se connecte
+1. Client se connecte avec le header X-API-Key
 2. Serveur envoie chaque nouvel evenement en JSON
 3. Connexion reste ouverte jusqu'a deconnexion client
 
@@ -396,26 +430,38 @@ Chaque message est un evenement JSON complet :
 
 ```bash
 # Terminal 1 - Ecouter les evenements
-websocat ws://localhost:8080/v1/events/stream
+websocat ws://localhost:8080/v1/events/stream --header="X-API-Key: votre-cle-api"
 
 # Terminal 2 - Envoyer des evenements
 curl -X POST http://localhost:8080/v1/simulate \
   -H "Content-Type: application/json" \
+  -H "X-API-Key: votre-cle-api" \
   -d '{"count": 3}'
 ```
 
-**Exemple JavaScript**
+**Exemple JavaScript (Node.js avec ws library)**
 
 ```javascript
-const ws = new WebSocket('ws://localhost:8080/v1/events/stream');
+const WebSocket = require('ws');
 
-ws.onopen = () => console.log('Connected');
-ws.onmessage = (event) => {
-  const data = JSON.parse(event.data);
-  console.log('Event received:', data);
-};
-ws.onclose = () => console.log('Disconnected');
+const ws = new WebSocket('ws://localhost:8080/v1/events/stream', {
+  headers: {
+    'X-API-Key': 'votre-cle-api'
+  }
+});
+
+ws.on('open', () => console.log('Connected'));
+ws.on('message', (data) => {
+  const event = JSON.parse(data);
+  console.log('Event received:', event);
+});
+ws.on('close', () => console.log('Disconnected'));
 ```
+
+**Note**: Les navigateurs web ne supportent pas les headers personnalisés pour les WebSockets. Pour une authentification depuis un navigateur, vous devrez soit:
+- Passer l'API key en paramètre de requête: `ws://localhost:8080/v1/events/stream?api_key=votre-cle-api`
+- Utiliser le header `Sec-WebSocket-Protocol` pour transmettre le token
+- Implémenter une authentification basée sur les cookies/sessions
 
 ---
 
