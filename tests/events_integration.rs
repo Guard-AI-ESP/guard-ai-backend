@@ -226,3 +226,113 @@ async fn test_reject_invalid_schema_version() {
     assert_eq!(json["accepted"], 0);
     assert_eq!(json["rejected"], 1);
 }
+
+#[tokio::test]
+async fn test_stats_endpoint() {
+    let pool = setup_test_db().await;
+    let app = app::build_router(pool);
+
+    // Insérer quelques événements
+    let events = json!({
+        "events": [
+            {
+                "event_id": "550e8400-e29b-41d4-a716-446655440020",
+                "site_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "source": "camera",
+                "type": "test",
+                "severity": "info",
+                "timestamp": "2024-01-15T10:00:00Z",
+                "payload": {},
+                "tags": [],
+                "schema_version": "v1"
+            },
+            {
+                "event_id": "550e8400-e29b-41d4-a716-446655440021",
+                "site_id": "aaaaaaaa-aaaa-aaaa-aaaa-aaaaaaaaaaaa",
+                "source": "sensor",
+                "type": "test",
+                "severity": "warning",
+                "timestamp": "2024-01-15T11:00:00Z",
+                "payload": {},
+                "tags": [],
+                "schema_version": "v1"
+            }
+        ]
+    });
+
+    app.clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/events")
+                .header("Content-Type", "application/json")
+                .body(Body::from(events.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    // Vérifier les stats
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/stats")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["total_events"], 2);
+    assert!(json["by_severity"].is_object());
+    assert!(json["by_source"].is_object());
+}
+
+#[tokio::test]
+async fn test_simulate_endpoint() {
+    let pool = setup_test_db().await;
+    let app = app::build_router(pool);
+
+    let simulate_req = json!({
+        "count": 5
+    });
+
+    let response = app
+        .clone()
+        .oneshot(
+            Request::builder()
+                .method("POST")
+                .uri("/v1/simulate")
+                .header("Content-Type", "application/json")
+                .body(Body::from(simulate_req.to_string()))
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    assert_eq!(response.status(), StatusCode::OK);
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["generated"], 5);
+    assert_eq!(json["persisted"], 5);
+
+    // Vérifier que les événements ont été créés
+    let response = app
+        .oneshot(
+            Request::builder()
+                .uri("/v1/events")
+                .body(Body::empty())
+                .unwrap(),
+        )
+        .await
+        .unwrap();
+
+    let body = response.into_body().collect().await.unwrap().to_bytes();
+    let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
+    assert_eq!(json["count"], 5);
+}

@@ -131,6 +131,59 @@ impl EventRepository {
 
         Ok(row.map(|r| r.into()))
     }
+
+    /// Récupère les statistiques agrégées
+    pub async fn get_stats(&self) -> Result<EventStats, sqlx::Error> {
+        // Total
+        let total: (i64,) = sqlx::query_as("SELECT COUNT(*) FROM events")
+            .fetch_one(&self.pool)
+            .await?;
+
+        // Par sévérité
+        let by_severity_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT severity, COUNT(*) as count FROM events GROUP BY severity")
+                .fetch_all(&self.pool)
+                .await?;
+
+        let mut by_severity = std::collections::HashMap::new();
+        for (severity, count) in by_severity_rows {
+            by_severity.insert(severity, count as usize);
+        }
+
+        // Par source
+        let by_source_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT source, COUNT(*) as count FROM events GROUP BY source")
+                .fetch_all(&self.pool)
+                .await?;
+
+        let mut by_source = std::collections::HashMap::new();
+        for (source, count) in by_source_rows {
+            by_source.insert(source, count as usize);
+        }
+
+        // Dernières 24h
+        let last_24h: (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM events WHERE datetime(timestamp) >= datetime('now', '-24 hours')",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        Ok(EventStats {
+            total_events: total.0 as usize,
+            by_severity,
+            by_source,
+            last_24h: last_24h.0 as usize,
+        })
+    }
+}
+
+/// Statistiques agrégées des événements
+#[derive(Debug, Clone, serde::Serialize)]
+pub struct EventStats {
+    pub total_events: usize,
+    pub by_severity: std::collections::HashMap<String, usize>,
+    pub by_source: std::collections::HashMap<String, usize>,
+    pub last_24h: usize,
 }
 
 /// Sérialise un enum en snake_case string

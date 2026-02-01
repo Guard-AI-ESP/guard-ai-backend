@@ -38,6 +38,12 @@ async fn ingest_events(
     let accepted = match state.event_repo.insert_batch(&to_insert).await {
         Ok(count) => {
             tracing::info!(accepted = count, rejected, "batch ingested");
+
+            // Broadcast les événements insérés aux clients WebSocket
+            for event in &to_insert {
+                let _ = state.event_tx.send(event.clone());
+            }
+
             count
         }
         Err(e) => {
