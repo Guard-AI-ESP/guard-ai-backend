@@ -2,12 +2,19 @@
 
 # Guard-AI Backend - Script de test API
 # Usage: ./test-api.sh [base_url]
+# Environment: API_KEY=your-api-key (optionnel, requis si le serveur a l'authentification activee)
 
 BASE_URL="${1:-http://localhost:8080}"
+API_KEY="${API_KEY:-}"
 
 echo "=========================================="
 echo "Guard-AI Backend API Test"
 echo "Base URL: $BASE_URL"
+if [ -n "$API_KEY" ]; then
+    echo "Authentication: Enabled"
+else
+    echo "Authentication: Disabled (development mode)"
+fi
 echo "=========================================="
 echo ""
 
@@ -27,6 +34,13 @@ fail() {
 
 info() {
     echo -e "${BLUE}[TEST]${NC} $1"
+}
+
+# Fonction pour construire les arguments curl avec authentification si necessaire
+build_curl_args() {
+    if [ -n "$API_KEY" ]; then
+        echo "-H \"X-API-Key: $API_KEY\""
+    fi
 }
 
 # 1. Health Check
@@ -65,9 +79,16 @@ PAYLOAD=$(cat <<EOF
 EOF
 )
 
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/v1/events" \
-  -H "Content-Type: application/json" \
-  -d "$PAYLOAD")
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/v1/events" \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: $API_KEY" \
+      -d "$PAYLOAD")
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/v1/events" \
+      -H "Content-Type: application/json" \
+      -d "$PAYLOAD")
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
 
@@ -81,7 +102,11 @@ echo ""
 
 # 3. Liste des evenements
 info "Liste des evenements"
-RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/events?limit=5")
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-Key: $API_KEY" "$BASE_URL/v1/events?limit=5")
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/events?limit=5")
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
 
@@ -96,7 +121,11 @@ echo ""
 
 # 4. Filtrage par source
 info "Filtrage par source"
-RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/events?source=camera")
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-Key: $API_KEY" "$BASE_URL/v1/events?source=camera")
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/events?source=camera")
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 
 if [ "$HTTP_CODE" = "200" ]; then
@@ -108,7 +137,11 @@ echo ""
 
 # 5. Evenement par ID (404 attendu si ID inexistant)
 info "Evenement par ID"
-RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/events/00000000-0000-0000-0000-000000000000")
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-Key: $API_KEY" "$BASE_URL/v1/events/00000000-0000-0000-0000-000000000000")
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/events/00000000-0000-0000-0000-000000000000")
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 
 if [ "$HTTP_CODE" = "404" ]; then
@@ -120,7 +153,11 @@ echo ""
 
 # 6. Statistiques
 info "Statistiques"
-RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/stats")
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-Key: $API_KEY" "$BASE_URL/v1/stats")
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/stats")
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
 
@@ -135,9 +172,16 @@ echo ""
 
 # 7. Simulation
 info "Simulation d'evenements"
-RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/v1/simulate" \
-  -H "Content-Type: application/json" \
-  -d '{"count": 3}')
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/v1/simulate" \
+      -H "Content-Type: application/json" \
+      -H "X-API-Key: $API_KEY" \
+      -d '{"count": 3}')
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" -X POST "$BASE_URL/v1/simulate" \
+      -H "Content-Type: application/json" \
+      -d '{"count": 3}')
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
 
@@ -151,7 +195,11 @@ echo ""
 
 # 8. Verification post-simulation
 info "Verification post-simulation"
-RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/stats")
+if [ -n "$API_KEY" ]; then
+    RESPONSE=$(curl -s -w "\n%{http_code}" -H "X-API-Key: $API_KEY" "$BASE_URL/v1/stats")
+else
+    RESPONSE=$(curl -s -w "\n%{http_code}" "$BASE_URL/v1/stats")
+fi
 HTTP_CODE=$(echo "$RESPONSE" | tail -n1)
 BODY=$(echo "$RESPONSE" | head -n-1)
 
