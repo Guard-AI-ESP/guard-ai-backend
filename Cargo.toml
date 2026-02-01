@@ -17,7 +17,7 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 thiserror = "1.0"
 
-# Random pour simulation
+# Random for simulation
 rand = "0.8"
 
 # Async streams pour WebSocket

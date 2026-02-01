@@ -366,7 +366,7 @@ async fn test_websocket_event_stream() {
         .await
         .expect("failed to connect to websocket");
 
-    let (mut _write, mut read) = ws_stream.split();
+    let (_ws_write, mut read) = ws_stream.split();
 
     // Create a task to listen for messages
     let receive_task = tokio::spawn(async move {
