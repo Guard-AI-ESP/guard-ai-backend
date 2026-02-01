@@ -101,10 +101,12 @@ impl EventRepository {
         query.push_str(" ORDER BY timestamp DESC");
 
         let limit = filter.limit.unwrap_or(100);
-        query.push_str(&format!(" LIMIT {}", limit));
+        query.push_str(" LIMIT ?");
+        bindings.push(limit.to_string());
 
         if let Some(offset) = filter.offset {
-            query.push_str(&format!(" OFFSET {}", offset));
+            query.push_str(" OFFSET ?");
+            bindings.push(offset.to_string());
         }
 
         let mut sqlx_query = sqlx::query_as::<_, EventRow>(&query);
@@ -211,14 +213,42 @@ struct EventRow {
 impl From<EventRow> for EventV1 {
     fn from(row: EventRow) -> Self {
         EventV1 {
-            event_id: Uuid::parse_str(&row.event_id).unwrap_or_default(),
-            site_id: Uuid::parse_str(&row.site_id).unwrap_or_default(),
+            event_id: Uuid::parse_str(&row.event_id).unwrap_or_else(|err| {
+                eprintln!(
+                    "Failed to parse event_id UUID '{}' from database: {}. Using nil UUID.",
+                    row.event_id, err
+                );
+                Uuid::nil()
+            }),
+            site_id: Uuid::parse_str(&row.site_id).unwrap_or_else(|err| {
+                eprintln!(
+                    "Failed to parse site_id UUID '{}' from database: {}. Using nil UUID.",
+                    row.site_id, err
+                );
+                Uuid::nil()
+            }),
             hub_id: row.hub_id,
             source: serde_json::from_str(&format!("\"{}\"", row.source))
-                .unwrap_or(EventSource::System),
+                .unwrap_or_else(|e| {
+                    log::warn!(
+                        "Invalid EventSource '{}' for event_id '{}': {}. Falling back to EventSource::System.",
+                        row.source,
+                        row.event_id,
+                        e
+                    );
+                    EventSource::System
+                }),
             event_type: row.event_type,
             severity: serde_json::from_str(&format!("\"{}\"", row.severity))
-                .unwrap_or(Severity::Info),
+                .unwrap_or_else(|e| {
+                    log::warn!(
+                        "Invalid Severity '{}' for event_id '{}': {}. Falling back to Severity::Info.",
+                        row.severity,
+                        row.event_id,
+                        e
+                    );
+                    Severity::Info
+                }),
             timestamp: row.timestamp,
             payload: serde_json::from_str(&row.payload).unwrap_or_default(),
             media_ref: row.media_ref,

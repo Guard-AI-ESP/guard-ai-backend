@@ -17,11 +17,14 @@ tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 thiserror = "1.0"
 
-# Random for simulation
+# Random pour simulation
 rand = "0.8"
 
 # Async streams pour WebSocket
 futures-util = "0.3"
+
+# Constant-time comparison for security
+subtle = "2.6"
 
 # SQLx avec support SQLite
 sqlx = { version = "0.8", features = [
@@ -36,5 +39,3 @@ sqlx = { version = "0.8", features = [
 glob = "0.3"
 tower = { version = "0.5", features = ["util"] }
 http-body-util = "0.1"
-tokio-tungstenite = "0.23"
-reqwest = { version = "0.12", features = ["json"] }
