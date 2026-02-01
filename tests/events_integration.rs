@@ -5,6 +5,8 @@ use axum::{
 use guard_ai_backend::{app, db};
 use http_body_util::BodyExt;
 use serde_json::json;
+use tokio_tungstenite::{connect_async, tungstenite::Message};
+use futures_util::StreamExt;
 use tower::ServiceExt;
 
 async fn setup_test_db() -> db::DbPool {
@@ -335,4 +337,88 @@ async fn test_simulate_endpoint() {
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["count"], 5);
+}
+
+#[tokio::test]
+async fn test_websocket_event_stream() {
+    // Setup test database and app
+    let pool = setup_test_db().await;
+    let app = app::build_router(pool);
+
+    // Start the server in a background task
+    let listener = tokio::net::TcpListener::bind("127.0.0.1:0")
+        .await
+        .expect("failed to bind");
+    let addr = listener.local_addr().expect("failed to get local addr");
+    
+    tokio::spawn(async move {
+        axum::serve(listener, app)
+            .await
+            .expect("server failed");
+    });
+
+    // Give the server a moment to start
+    tokio::time::sleep(tokio::time::Duration::from_millis(100)).await;
+
+    // Connect to WebSocket endpoint
+    let ws_url = format!("ws://{}/v1/events/stream", addr);
+    let (ws_stream, _) = connect_async(&ws_url)
+        .await
+        .expect("failed to connect to websocket");
+
+    let (mut _write, mut read) = ws_stream.split();
+
+    // Create a task to listen for messages
+    let receive_task = tokio::spawn(async move {
+        let mut received_messages = Vec::new();
+        while let Some(msg_result) = read.next().await {
+            if let Ok(Message::Text(text)) = msg_result {
+                received_messages.push(text);
+                // Stop after receiving one message
+                if received_messages.len() >= 1 {
+                    break;
+                }
+            }
+        }
+        received_messages
+    });
+
+    // Trigger event generation via simulate endpoint
+    let client = reqwest::Client::new();
+    let simulate_url = format!("http://{}/v1/simulate", addr);
+    let simulate_body = json!({ "count": 3 });
+    
+    client
+        .post(&simulate_url)
+        .json(&simulate_body)
+        .send()
+        .await
+        .expect("failed to send simulate request");
+
+    // Wait for messages with timeout
+    let messages = tokio::time::timeout(
+        tokio::time::Duration::from_secs(5),
+        receive_task
+    )
+    .await
+    .expect("timeout waiting for messages")
+    .expect("receive task failed");
+
+    // Verify we received at least one message
+    assert!(
+        !messages.is_empty(),
+        "Expected to receive at least one WebSocket message"
+    );
+
+    // Verify the message is valid JSON and has expected structure
+    let event: serde_json::Value = serde_json::from_str(&messages[0])
+        .expect("received message is not valid JSON");
+    
+    // Verify event has expected fields
+    assert!(event.get("event_id").is_some(), "event missing event_id");
+    assert!(event.get("site_id").is_some(), "event missing site_id");
+    assert!(event.get("source").is_some(), "event missing source");
+    assert!(event.get("type").is_some(), "event missing type");
+    assert!(event.get("severity").is_some(), "event missing severity");
+    assert!(event.get("timestamp").is_some(), "event missing timestamp");
 }
