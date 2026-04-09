@@ -4,7 +4,8 @@ version = "0.1.0"
 edition = "2021"
 
 [dependencies]
-axum = "0.7"
+axum = { version = "0.7", features = ["ws"] }
+rand = "0.8"
 tokio = { version = "1.38", features = ["full"] }
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
@@ -15,6 +16,10 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 
 thiserror = "1.0"
+
+# Auth
+jsonwebtoken = "9"
+bcrypt = "0.15"
 
 # SQLx avec support SQLite
 sqlx = { version = "0.8", features = [

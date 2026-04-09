@@ -1,3 +1,4 @@
+pub mod auth;
 pub mod events;
 pub mod health;
 pub mod simulate;
@@ -7,12 +8,14 @@ pub mod ws;
 use crate::state::SharedState;
 use axum::Router;
 
-/// Routes publiques (pas d'authentification requise)
+/// Routes publiques — pas d'authentification requise
 pub fn public_router() -> Router<SharedState> {
-    Router::new().merge(health::router())
+    Router::new()
+        .merge(health::router())
+        .merge(auth::router())
 }
 
-/// Routes protégées par API key
+/// Routes protégées par JWT
 pub fn protected_router() -> Router<SharedState> {
     Router::new()
         .merge(events::router())
@@ -20,7 +23,7 @@ pub fn protected_router() -> Router<SharedState> {
         .merge(simulate::router())
 }
 
-/// Routes WebSocket (auth par query param)
+/// Routes WebSocket — auth par query param `?token=`
 pub fn ws_router() -> Router<SharedState> {
     ws::router()
 }

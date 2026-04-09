@@ -1,3 +1,4 @@
+use crate::models::user::Claims;
 use crate::state::SharedState;
 use axum::{
     extract::{
@@ -9,29 +10,29 @@ use axum::{
     routing::get,
     Router,
 };
+use jsonwebtoken::{decode, DecodingKey, Validation};
 use serde::Deserialize;
 use tokio::sync::broadcast::error::RecvError;
 
 #[derive(Deserialize)]
 pub struct WsParams {
-    api_key: Option<String>,
+    /// JWT passé en query param (les headers custom ne sont pas supportés par l'API WebSocket browser)
+    token: Option<String>,
 }
 
 pub fn router() -> Router<SharedState> {
     Router::new().route("/events/stream", get(ws_handler))
 }
 
-/// GET /ws/events/stream?api_key=<key>
+/// GET /ws/events/stream?token=<jwt>
 ///
-/// Upgrade HTTP → WebSocket. Envoie chaque nouvel EventV1 (JSON) aux clients connectés
-/// dès qu'il est inséré (via ingest ou simulate).
+/// Upgrade HTTP → WebSocket. Diffuse chaque nouvel EventV1 (JSON) aux clients connectés.
 async fn ws_handler(
     ws: WebSocketUpgrade,
     Query(params): Query<WsParams>,
     State(state): State<SharedState>,
 ) -> impl IntoResponse {
-    // Validation de la clé API passée en query param
-    if !is_authorized(&params.api_key, &state) {
+    if !is_authorized(&params.token, &state) {
         return StatusCode::UNAUTHORIZED.into_response();
     }
 
@@ -55,11 +56,9 @@ async fn stream_events(mut socket: WebSocket, state: SharedState) {
                             }
                         };
                         if socket.send(Message::Text(json)).await.is_err() {
-                            // Client déconnecté
                             break;
                         }
                     }
-                    // Le canal a débordé — on continue sans bloquer
                     Err(RecvError::Lagged(skipped)) => {
                         tracing::warn!(skipped, "WS client lagged, events dropped");
                         continue;
@@ -69,9 +68,7 @@ async fn stream_events(mut socket: WebSocket, state: SharedState) {
             }
             msg = socket.recv() => {
                 match msg {
-                    // Ping/pong géré par axum automatiquement — on ignore les autres messages
                     Some(Ok(_)) => {}
-                    // None = client fermé proprement, Err = erreur réseau
                     _ => break,
                 }
             }
@@ -81,13 +78,17 @@ async fn stream_events(mut socket: WebSocket, state: SharedState) {
     tracing::debug!("WebSocket client disconnected");
 }
 
-/// Valide la clé API transmise en query param contre celle stockée dans AppState
-fn is_authorized(provided: &Option<String>, state: &crate::state::AppState) -> bool {
-    match state.api_key.as_deref() {
-        Some(expected) if !expected.is_empty() => {
-            provided.as_deref().unwrap_or("") == expected
-        }
-        // Aucune clé configurée → accès libre
-        _ => true,
-    }
+/// Valide le JWT passé en query param
+fn is_authorized(token: &Option<String>, state: &crate::state::AppState) -> bool {
+    let Some(token) = token else {
+        // Pas de token → autorisé uniquement si JWT_SECRET non configuré (dev)
+        return state.jwt_secret == "dev-insecure-secret-change-in-production";
+    };
+
+    decode::<Claims>(
+        token,
+        &DecodingKey::from_secret(state.jwt_secret.as_bytes()),
+        &Validation::default(),
+    )
+    .is_ok()
 }

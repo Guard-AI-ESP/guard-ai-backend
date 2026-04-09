@@ -1,4 +1,6 @@
-/// Tests d'intégration pour les nouvelles routes : stats, simulate, API key middleware
+mod helpers;
+use helpers::{build_test_app, test_jwt};
+
 use axum::{
     body::Body,
     http::{Request, StatusCode},
@@ -9,37 +11,18 @@ use serde_json::json;
 use std::sync::Arc;
 use tower::ServiceExt;
 
-async fn setup_test_db() -> db::DbPool {
-    let pool = db::pool::create_pool("sqlite::memory:")
-        .await
-        .expect("test pool");
-    db::pool::run_migrations(&pool).await.expect("migrations");
-    pool
-}
-
-/// App sans clé API (auth désactivée)
-async fn build_app_no_auth() -> axum::Router {
-    let pool = setup_test_db().await;
-    app::build_router(pool)
-}
-
-/// App avec une clé API définie
-async fn build_app_with_key(key: &str) -> axum::Router {
-    let pool = setup_test_db().await;
-    let state = Arc::new(AppState::with_config(pool, Some(key.to_string())));
-    app::build_router_with_state(state)
-}
-
 // ─── /v1/stats ────────────────────────────────────────────────────────────────
 
 #[tokio::test]
 async fn test_stats_empty_db() {
-    let app = build_app_no_auth().await;
+    let app = build_test_app().await;
+    let token = test_jwt("test@guard-ai.com");
 
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/stats")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -47,7 +30,6 @@ async fn test_stats_empty_db() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
@@ -58,9 +40,9 @@ async fn test_stats_empty_db() {
 
 #[tokio::test]
 async fn test_stats_after_ingest() {
-    let app = build_app_no_auth().await;
+    let app = build_test_app().await;
+    let token = test_jwt("test@guard-ai.com");
 
-    // Ingest 2 events : 1 warning camera, 1 critical sensor
     let events = json!({
         "events": [
             {
@@ -94,6 +76,7 @@ async fn test_stats_after_ingest() {
                 .method("POST")
                 .uri("/v1/events")
                 .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(events.to_string()))
                 .unwrap(),
         )
@@ -104,6 +87,7 @@ async fn test_stats_after_ingest() {
         .oneshot(
             Request::builder()
                 .uri("/v1/stats")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -111,12 +95,10 @@ async fn test_stats_after_ingest() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
 
     assert_eq!(json["total_events"], 2);
-    // Timestamps en 2020 → hors de la fenêtre des 24 dernières heures
     assert_eq!(json["last_24h"], 0);
     assert_eq!(json["by_source"]["camera"], 1);
     assert_eq!(json["by_source"]["sensor"], 1);
@@ -128,7 +110,8 @@ async fn test_stats_after_ingest() {
 
 #[tokio::test]
 async fn test_simulate_generates_events() {
-    let app = build_app_no_auth().await;
+    let app = build_test_app().await;
+    let token = test_jwt("test@guard-ai.com");
 
     let response = app
         .clone()
@@ -137,6 +120,7 @@ async fn test_simulate_generates_events() {
                 .method("POST")
                 .uri("/v1/simulate")
                 .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(json!({ "count": 5 }).to_string()))
                 .unwrap(),
         )
@@ -144,16 +128,15 @@ async fn test_simulate_generates_events() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["generated"], 5);
 
-    // Vérifie que les events sont bien en base
     let response = app
         .oneshot(
             Request::builder()
                 .uri("/v1/events")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::empty())
                 .unwrap(),
         )
@@ -167,15 +150,16 @@ async fn test_simulate_generates_events() {
 
 #[tokio::test]
 async fn test_simulate_default_count() {
-    let app = build_app_no_auth().await;
+    let app = build_test_app().await;
+    let token = test_jwt("test@guard-ai.com");
 
-    // Pas de count → défaut = 5
     let response = app
         .oneshot(
             Request::builder()
                 .method("POST")
                 .uri("/v1/simulate")
                 .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from("{}"))
                 .unwrap(),
         )
@@ -183,7 +167,6 @@ async fn test_simulate_default_count() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
     assert_eq!(json["generated"], 5);
@@ -191,7 +174,8 @@ async fn test_simulate_default_count() {
 
 #[tokio::test]
 async fn test_simulate_count_capped_at_100() {
-    let app = build_app_no_auth().await;
+    let app = build_test_app().await;
+    let token = test_jwt("test@guard-ai.com");
 
     let response = app
         .clone()
@@ -200,6 +184,7 @@ async fn test_simulate_count_capped_at_100() {
                 .method("POST")
                 .uri("/v1/simulate")
                 .header("Content-Type", "application/json")
+                .header("Authorization", format!("Bearer {token}"))
                 .body(Body::from(json!({ "count": 999 }).to_string()))
                 .unwrap(),
         )
@@ -207,20 +192,21 @@ async fn test_simulate_count_capped_at_100() {
         .unwrap();
 
     assert_eq!(response.status(), StatusCode::OK);
-
     let body = response.into_body().collect().await.unwrap().to_bytes();
     let json: serde_json::Value = serde_json::from_slice(&body).unwrap();
-    // Cappé à 100
     assert_eq!(json["generated"], 100);
 }
 
-// ─── API key middleware ────────────────────────────────────────────────────────
+// ─── JWT middleware ────────────────────────────────────────────────────────────
 
 #[tokio::test]
-async fn test_api_key_required_when_configured() {
-    let app = build_app_with_key("test-secret-key").await;
+async fn test_jwt_required_on_protected_routes() {
+    let pool = db::pool::create_pool("sqlite::memory:").await.unwrap();
+    db::pool::run_migrations(&pool).await.unwrap();
+    let state = Arc::new(AppState::with_config(pool, "secret".to_string(), None));
+    let app = app::build_router_with_state(state);
 
-    // Sans clé → 401
+    // Sans token → 401
     let response = app
         .clone()
         .oneshot(
@@ -233,39 +219,25 @@ async fn test_api_key_required_when_configured() {
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
 
-    // Mauvaise clé → 401
+    // Mauvais token → 401
     let response = app
         .clone()
         .oneshot(
             Request::builder()
                 .uri("/v1/stats")
-                .header("x-api-key", "wrong-key")
+                .header("Authorization", "Bearer invalid.token.here")
                 .body(Body::empty())
                 .unwrap(),
         )
         .await
         .unwrap();
     assert_eq!(response.status(), StatusCode::UNAUTHORIZED);
-
-    // Bonne clé → 200
-    let response = app
-        .oneshot(
-            Request::builder()
-                .uri("/v1/stats")
-                .header("x-api-key", "test-secret-key")
-                .body(Body::empty())
-                .unwrap(),
-        )
-        .await
-        .unwrap();
-    assert_eq!(response.status(), StatusCode::OK);
 }
 
 #[tokio::test]
-async fn test_health_is_public_even_with_api_key_configured() {
-    let app = build_app_with_key("test-secret-key").await;
+async fn test_health_is_public() {
+    let app = build_test_app().await;
 
-    // Health ne passe pas par le middleware protégé
     let response = app
         .oneshot(
             Request::builder()

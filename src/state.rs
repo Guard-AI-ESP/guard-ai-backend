@@ -1,4 +1,4 @@
-use crate::db::{DbPool, EventRepository};
+use crate::db::{DbPool, EventRepository, UserRepository};
 use crate::models::event::EventV1;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -6,28 +6,40 @@ use tokio::sync::broadcast;
 /// Capacité du canal WebSocket — les clients lents perdent les messages anciens
 pub const WS_CHANNEL_CAPACITY: usize = 256;
 
+/// Durée de validité des JWT en secondes (24h)
+pub const JWT_EXPIRY_SECS: u64 = 86_400;
+
 /// État partagé de l'application, accessible dans tous les handlers
 #[derive(Clone)]
 pub struct AppState {
     pub event_repo: EventRepository,
+    pub user_repo: UserRepository,
     /// Canal de diffusion des nouveaux événements vers les clients WebSocket
     pub event_tx: broadcast::Sender<EventV1>,
-    /// Clé API attendue. `None` = auth désactivée (dev sans variable d'env)
+    /// Clé secrète pour signer/vérifier les JWT
+    pub jwt_secret: String,
+    /// Clé API pour l'accès machine-to-machine (IoT, services).
+    /// `None` = auth machine désactivée (dev)
     pub api_key: Option<String>,
 }
 
 impl AppState {
     /// Construit depuis les variables d'environnement
     pub fn new(pool: DbPool) -> Self {
-        Self::with_config(pool, std::env::var("API_KEY").ok())
+        let jwt_secret = std::env::var("JWT_SECRET")
+            .unwrap_or_else(|_| "dev-insecure-secret-change-in-production".to_string());
+        let api_key = std::env::var("API_KEY").ok();
+        Self::with_config(pool, jwt_secret, api_key)
     }
 
-    /// Constructeur explicite — utile dans les tests pour contrôler la clé sans toucher l'env
-    pub fn with_config(pool: DbPool, api_key: Option<String>) -> Self {
+    /// Constructeur explicite — utile dans les tests pour contrôler la config
+    pub fn with_config(pool: DbPool, jwt_secret: String, api_key: Option<String>) -> Self {
         let (event_tx, _) = broadcast::channel(WS_CHANNEL_CAPACITY);
         Self {
-            event_repo: EventRepository::new(pool),
+            event_repo: EventRepository::new(pool.clone()),
+            user_repo: UserRepository::new(pool),
             event_tx,
+            jwt_secret,
             api_key,
         }
     }

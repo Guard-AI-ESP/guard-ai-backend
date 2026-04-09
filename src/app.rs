@@ -1,5 +1,5 @@
 use crate::db::DbPool;
-use crate::middleware::api_key::require_api_key;
+use crate::middleware::jwt::require_jwt;
 use crate::routes;
 use crate::state::{AppState, SharedState};
 use axum::{middleware, Router};
@@ -12,20 +12,17 @@ pub fn build_router(pool: DbPool) -> Router {
 }
 
 /// Construit le router avec un état explicite.
-/// Utile dans les tests pour injecter une clé API spécifique sans toucher l'environnement.
+/// Utile dans les tests pour injecter jwt_secret et api_key sans toucher l'env.
 pub fn build_router_with_state(state: SharedState) -> Router {
-    // Routes protégées par le middleware API key (lit la clé depuis state)
+    // Routes protégées par JWT
     let protected = Router::new()
         .nest("/v1", routes::protected_router())
-        .layer(middleware::from_fn_with_state(
-            state.clone(),
-            require_api_key,
-        ));
+        .layer(middleware::from_fn_with_state(state.clone(), require_jwt));
 
-    // Routes publiques (health) — pas de middleware
+    // Routes publiques (health, auth/register, auth/login)
     let public = Router::new().nest("/v1", routes::public_router());
 
-    // WebSocket — auth gérée dans le handler via query param
+    // WebSocket — auth gérée dans le handler
     let ws = Router::new().nest("/ws", routes::ws_router());
 
     Router::new()
