@@ -2,52 +2,67 @@
 
 ## 1. Branches Git
 
-- Branche stable : `main`
-- Branche d'intégration : `dev`
-- Une branche par issue
+### Branches permanentes
 
-Format des branches :
+| Branche | Rôle | Push direct |
+|---------|------|-------------|
+| `main` | Production — stable, déployée | Non |
+| `staging` | Intégration — recette avant prod | Non |
 
-`<issueId>_<type>/<team>/<short-feature-name>`
+### Branches de travail
+
+Format : `<type>/<scope>`
+
+```
+feat/<scope>    ← nouvelle fonctionnalité
+fix/<scope>     ← correction de bug
+chore/<scope>   ← maintenance, deps, config
+docs/<scope>    ← documentation
+```
 
 Exemples :
+- `feat/backend/websocket-auth`
+- `fix/backend/event-pagination`
+- `chore/backend/upgrade-sqlx`
+- `docs/backend/api-endpoints`
 
-- `012_dev/ia/face-recognition-pipeline`
-- `034_fix/backend/camera-stream-timeout`
-- `051_spike/iot/test-mqtt-broker`
+### Flux
 
-Types : `dev`, `fix`, `spike`, `doc`, `chore`  
-Teams : `frontend`, `backend`, `ia`, `iot`, `infra`, `all`
+```
+feat/* ──PR──► staging ──PR──► main
+fix/*  ──PR──► staging ──PR──► main
+```
 
 ## 2. Commits
 
-On utilise Conventional Commits :
+On utilise [Conventional Commits](https://www.conventionalcommits.org/) :
 
 `<type>(<scope>): <message>`
 
 Types : `feat`, `fix`, `refactor`, `docs`, `test`, `chore`, `style`
 
 Exemples :
-
-- `feat(ia): ajouter detection visage`
-- `fix(api): corriger crash si camera est offline`
+- `feat(auth): add X-API-Key validation on websocket`
+- `fix(events): correct pagination offset calculation`
+- `chore(deps): upgrade axum to 0.8`
 
 ## 3. Issues
 
 Chaque issue doit contenir :
 
-- Un titre clair : `[IA] Détection visage caméra entrée`
-- Des labels : `ia`, `feature`, etc.
+- Un titre clair : `[backend] Timeout sur le stream WebSocket`
+- Des labels : `backend`, `bug`, `feature`, etc.
 - Un assignee
 
 ## 4. Pull Requests
 
+- Toujours cibler `staging`, jamais `main` directement
 - Toujours lier la PR à une issue (`Closes #...`)
-- Au moins 1 review avant merge
-- Taille raisonnable
+- Au moins 1 review avant merge vers `staging`
+- Au moins 1 review avant merge vers `main`
+- Squash merge préféré pour garder un historique propre
 
 Template résumé :
-
 - Description
 - Lié à
 - Type de changement
