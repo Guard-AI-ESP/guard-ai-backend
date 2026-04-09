@@ -1,5 +1,6 @@
-use crate::models::event::{EventSource, EventV1, Severity};
+use crate::models::event::{EventSource, EventStats, EventV1, Severity};
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Paramètres de filtrage pour les requêtes GET
@@ -118,6 +119,44 @@ impl EventRepository {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
+    /// Retourne les statistiques agrégées sur tous les événements
+    pub async fn get_stats(&self) -> Result<EventStats, sqlx::Error> {
+        let (total_events,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM events")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let (last_24h,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM events WHERE timestamp >= datetime('now', '-24 hours')",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let (active_alerts,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM events \
+             WHERE severity = 'critical' AND timestamp >= datetime('now', '-24 hours')",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let source_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT source, COUNT(*) FROM events GROUP BY source")
+                .fetch_all(&self.pool)
+                .await?;
+
+        let severity_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT severity, COUNT(*) FROM events GROUP BY severity")
+                .fetch_all(&self.pool)
+                .await?;
+
+        Ok(EventStats {
+            total_events,
+            last_24h,
+            active_alerts,
+            by_source: source_rows.into_iter().collect::<HashMap<_, _>>(),
+            by_severity: severity_rows.into_iter().collect::<HashMap<_, _>>(),
+        })
+    }
+
     /// Récupère un événement par son ID
     pub async fn find_by_id(&self, event_id: Uuid) -> Result<Option<EventV1>, sqlx::Error> {
         let row = sqlx::query_as::<_, EventRow>(
@@ -177,7 +216,7 @@ impl From<EventRow> for EventV1 {
             hub_id: row.hub_id,
             source: serde_json::from_str(&format!("\"{}\"", row.source))
                 .unwrap_or_else(|e| {
-                    log::warn!(
+                    tracing::warn!(
                         "Invalid EventSource '{}' for event_id '{}': {}. Falling back to EventSource::System.",
                         row.source,
                         row.event_id,
@@ -188,7 +227,7 @@ impl From<EventRow> for EventV1 {
             event_type: row.event_type,
             severity: serde_json::from_str(&format!("\"{}\"", row.severity))
                 .unwrap_or_else(|e| {
-                    log::warn!(
+                    tracing::warn!(
                         "Invalid Severity '{}' for event_id '{}': {}. Falling back to Severity::Info.",
                         row.severity,
                         row.event_id,

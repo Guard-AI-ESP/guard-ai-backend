@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,4 +76,33 @@ pub struct EventsListResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct EventResponse {
     pub event: EventV1,
+}
+
+/// Statistiques agrégées pour GET /v1/stats
+#[derive(Debug, Clone, Serialize)]
+pub struct EventStats {
+    pub total_events: i64,
+    pub last_24h: i64,
+    /// Événements critiques des dernières 24h (utilisé comme "active alerts")
+    pub active_alerts: i64,
+    pub by_source: HashMap<String, i64>,
+    pub by_severity: HashMap<String, i64>,
+}
+
+/// Corps de POST /v1/simulate
+#[derive(Debug, Deserialize)]
+pub struct SimulateRequest {
+    /// Nombre d'événements à générer (1–100, défaut 5)
+    #[serde(default = "default_count")]
+    pub count: u32,
+}
+
+fn default_count() -> u32 {
+    5
+}
+
+/// Réponse de POST /v1/simulate
+#[derive(Debug, Serialize)]
+pub struct SimulateResponse {
+    pub generated: usize,
 }
