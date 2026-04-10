@@ -1,4 +1,4 @@
-use crate::db::{DbPool, EventRepository, UserRepository};
+use crate::db::{DbPool, EventRepository, PersonRepository, UserRepository};
 use crate::models::event::EventV1;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -13,6 +13,7 @@ pub const JWT_EXPIRY_SECS: u64 = 86_400;
 #[derive(Clone)]
 pub struct AppState {
     pub event_repo: EventRepository,
+    pub person_repo: PersonRepository,
     pub user_repo: UserRepository,
     /// Canal de diffusion des nouveaux événements vers les clients WebSocket
     pub event_tx: broadcast::Sender<EventV1>,
@@ -37,6 +38,7 @@ impl AppState {
         let (event_tx, _) = broadcast::channel(WS_CHANNEL_CAPACITY);
         Self {
             event_repo: EventRepository::new(pool.clone()),
+            person_repo: PersonRepository::new(pool.clone()),
             user_repo: UserRepository::new(pool),
             event_tx,
             jwt_secret,
