@@ -49,6 +49,7 @@ fn build_fake_events(count: usize) -> Vec<EventV1> {
             let source = random_source(&mut rng);
             let severity = random_severity(&mut rng);
             let event_type = random_event_type(&source, &mut rng);
+            let detection = build_detection_fields(&source, &event_type, &mut rng);
 
             EventV1 {
                 event_id: Uuid::new_v4(),
@@ -62,9 +63,99 @@ fn build_fake_events(count: usize) -> Vec<EventV1> {
                 media_ref: None,
                 tags: vec!["simulated".to_string()],
                 schema_version: "v1".to_string(),
+                camera_id: detection.camera_id,
+                face_id: detection.face_id,
+                person_name: detection.person_name,
+                confidence: detection.confidence,
+                is_known: detection.is_known,
+                bounding_box: detection.bounding_box,
             }
         })
         .collect()
+}
+
+struct DetectionFields {
+    camera_id: Option<String>,
+    face_id: Option<String>,
+    person_name: Option<String>,
+    confidence: Option<f64>,
+    is_known: Option<bool>,
+    bounding_box: Option<serde_json::Value>,
+}
+
+/// Remplit les champs de détection uniquement pour les events caméra pertinents
+fn build_detection_fields(
+    source: &EventSource,
+    event_type: &str,
+    rng: &mut impl Rng,
+) -> DetectionFields {
+    let is_face_event = matches!(source, EventSource::Camera)
+        && matches!(event_type, "face_recognized" | "face_unknown");
+
+    if !is_face_event {
+        return DetectionFields {
+            camera_id: match source {
+                EventSource::Camera => Some(random_camera_id(rng)),
+                _ => None,
+            },
+            face_id: None,
+            person_name: None,
+            confidence: None,
+            is_known: None,
+            bounding_box: None,
+        };
+    }
+
+    let is_known = event_type == "face_recognized";
+    let confidence: f64 = if is_known {
+        // Visage connu : confiance élevée (85–99%)
+        rng.gen_range(0.85..0.99)
+    } else {
+        // Inconnu : confiance faible (40–75%)
+        rng.gen_range(0.40..0.75)
+    };
+
+    // Coordonnées réalistes du visage dans le frame (normalisées 0.0–1.0)
+    let x: f64 = rng.gen_range(0.1..0.7);
+    let y: f64 = rng.gen_range(0.05..0.5);
+    let w: f64 = rng.gen_range(0.1..0.3);
+    let h: f64 = w * rng.gen_range(1.1..1.4); // visage légèrement plus haut que large
+
+    let (face_id, person_name) = if is_known {
+        random_known_person(rng)
+    } else {
+        (None, None)
+    };
+
+    DetectionFields {
+        camera_id: Some(random_camera_id(rng)),
+        face_id,
+        person_name,
+        confidence: Some((confidence * 1000.0).round() / 1000.0),
+        is_known: Some(is_known),
+        bounding_box: Some(serde_json::json!({
+            "x": (x * 1000.0).round() / 1000.0,
+            "y": (y * 1000.0).round() / 1000.0,
+            "w": (w * 1000.0).round() / 1000.0,
+            "h": (h * 1000.0).round() / 1000.0,
+        })),
+    }
+}
+
+fn random_camera_id(rng: &mut impl Rng) -> String {
+    let cameras = ["cam-entree-01", "cam-garage-01", "cam-portail-01", "cam-couloir-01"];
+    cameras[rng.gen_range(0..cameras.len())].to_string()
+}
+
+/// Retourne une personne connue fictive (face_id + nom)
+fn random_known_person(rng: &mut impl Rng) -> (Option<String>, Option<String>) {
+    let persons = [
+        ("550e8400-e29b-41d4-a716-446655440001", "Alice Martin"),
+        ("550e8400-e29b-41d4-a716-446655440002", "Bob Dupont"),
+        ("550e8400-e29b-41d4-a716-446655440003", "Claire Bernard"),
+    ];
+    let (id, name) = persons[rng.gen_range(0..persons.len())];
+    (Some(id.to_string()), Some(name.to_string()))
 }
 
 fn random_source(rng: &mut impl Rng) -> EventSource {
