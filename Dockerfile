@@ -1,5 +1,5 @@
 # Build
-FROM rust:1.83 as builder
+FROM rust:1.88 as builder
 WORKDIR /app
 
 # Pour le submodule dans le build docker: on copie tout le repo incluant contracts/
