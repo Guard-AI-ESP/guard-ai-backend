@@ -1,4 +1,5 @@
 use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
 use uuid::Uuid;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -39,6 +40,33 @@ pub struct EventV1 {
     pub tags: Vec<String>,
 
     pub schema_version: String,
+
+    // ── Champs de détection faciale (remplis uniquement pour source = camera) ──
+
+    /// Identifiant de la caméra source (ex: "cam-entree-01")
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub camera_id: Option<String>,
+
+    /// UUID de la personne reconnue (référence vers la table `persons`)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub face_id: Option<String>,
+
+    /// Nom affiché de la personne reconnue (dénormalisé pour éviter une jointure)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub person_name: Option<String>,
+
+    /// Score de confiance de la reconnaissance (0.0 → 1.0)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub confidence: Option<f64>,
+
+    /// true = personne connue, false = inconnu (déclenchera une alerte)
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub is_known: Option<bool>,
+
+    /// Coordonnées du visage dans le frame, normalisées (0.0–1.0)
+    /// Format : { "x": f64, "y": f64, "w": f64, "h": f64 }
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub bounding_box: Option<serde_json::Value>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -75,4 +103,33 @@ pub struct EventsListResponse {
 #[derive(Debug, Clone, Serialize)]
 pub struct EventResponse {
     pub event: EventV1,
+}
+
+/// Statistiques agrégées pour GET /v1/stats
+#[derive(Debug, Clone, Serialize)]
+pub struct EventStats {
+    pub total_events: i64,
+    pub last_24h: i64,
+    /// Événements critiques des dernières 24h (utilisé comme "active alerts")
+    pub active_alerts: i64,
+    pub by_source: HashMap<String, i64>,
+    pub by_severity: HashMap<String, i64>,
+}
+
+/// Corps de POST /v1/simulate
+#[derive(Debug, Deserialize)]
+pub struct SimulateRequest {
+    /// Nombre d'événements à générer (1–100, défaut 5)
+    #[serde(default = "default_count")]
+    pub count: u32,
+}
+
+fn default_count() -> u32 {
+    5
+}
+
+/// Réponse de POST /v1/simulate
+#[derive(Debug, Serialize)]
+pub struct SimulateResponse {
+    pub generated: usize,
 }

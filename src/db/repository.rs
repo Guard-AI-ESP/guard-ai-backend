@@ -1,5 +1,6 @@
-use crate::models::event::{EventSource, EventV1, Severity};
+use crate::models::event::{EventSource, EventStats, EventV1, Severity};
 use sqlx::SqlitePool;
+use std::collections::HashMap;
 use uuid::Uuid;
 
 /// Paramètres de filtrage pour les requêtes GET
@@ -36,12 +37,18 @@ impl EventRepository {
             let payload_json = serde_json::to_string(&event.payload).unwrap_or_default();
             let tags_json = serde_json::to_string(&event.tags).unwrap_or_default();
 
+            let bbox_json = event
+                .bounding_box
+                .as_ref()
+                .map(|b| serde_json::to_string(b).unwrap_or_default());
+
             let result = sqlx::query(
                 r#"
                 INSERT INTO events (
                     event_id, site_id, hub_id, source, event_type, severity,
-                    timestamp, payload, media_ref, tags, schema_version
-                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                    timestamp, payload, media_ref, tags, schema_version,
+                    camera_id, face_id, person_name, confidence, is_known, bounding_box
+                ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 "#,
             )
             .bind(event.event_id.to_string())
@@ -55,6 +62,12 @@ impl EventRepository {
             .bind(&event.media_ref)
             .bind(&tags_json)
             .bind(&event.schema_version)
+            .bind(&event.camera_id)
+            .bind(&event.face_id)
+            .bind(&event.person_name)
+            .bind(event.confidence)
+            .bind(event.is_known.map(|v| v as i64))
+            .bind(&bbox_json)
             .execute(&mut *tx)
             .await;
 
@@ -71,7 +84,8 @@ impl EventRepository {
     pub async fn find(&self, filter: &EventFilter) -> Result<Vec<EventV1>, sqlx::Error> {
         let mut query = String::from(
             "SELECT event_id, site_id, hub_id, source, event_type, severity,
-                    timestamp, payload, media_ref, tags, schema_version
+                    timestamp, payload, media_ref, tags, schema_version,
+                    camera_id, face_id, person_name, confidence, is_known, bounding_box
              FROM events WHERE 1=1",
         );
 
@@ -118,11 +132,50 @@ impl EventRepository {
         Ok(rows.into_iter().map(|r| r.into()).collect())
     }
 
+    /// Retourne les statistiques agrégées sur tous les événements
+    pub async fn get_stats(&self) -> Result<EventStats, sqlx::Error> {
+        let (total_events,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM events")
+            .fetch_one(&self.pool)
+            .await?;
+
+        let (last_24h,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM events WHERE timestamp >= datetime('now', '-24 hours')",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let (active_alerts,): (i64,) = sqlx::query_as(
+            "SELECT COUNT(*) FROM events \
+             WHERE severity = 'critical' AND timestamp >= datetime('now', '-24 hours')",
+        )
+        .fetch_one(&self.pool)
+        .await?;
+
+        let source_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT source, COUNT(*) FROM events GROUP BY source")
+                .fetch_all(&self.pool)
+                .await?;
+
+        let severity_rows: Vec<(String, i64)> =
+            sqlx::query_as("SELECT severity, COUNT(*) FROM events GROUP BY severity")
+                .fetch_all(&self.pool)
+                .await?;
+
+        Ok(EventStats {
+            total_events,
+            last_24h,
+            active_alerts,
+            by_source: source_rows.into_iter().collect::<HashMap<_, _>>(),
+            by_severity: severity_rows.into_iter().collect::<HashMap<_, _>>(),
+        })
+    }
+
     /// Récupère un événement par son ID
     pub async fn find_by_id(&self, event_id: Uuid) -> Result<Option<EventV1>, sqlx::Error> {
         let row = sqlx::query_as::<_, EventRow>(
             "SELECT event_id, site_id, hub_id, source, event_type, severity,
-                    timestamp, payload, media_ref, tags, schema_version
+                    timestamp, payload, media_ref, tags, schema_version,
+                    camera_id, face_id, person_name, confidence, is_known, bounding_box
              FROM events WHERE event_id = ?",
         )
         .bind(event_id.to_string())
@@ -155,6 +208,13 @@ struct EventRow {
     media_ref: Option<String>,
     tags: String,
     schema_version: String,
+    // Champs détection faciale (nullable)
+    camera_id: Option<String>,
+    face_id: Option<String>,
+    person_name: Option<String>,
+    confidence: Option<f64>,
+    is_known: Option<i64>,
+    bounding_box: Option<String>,
 }
 
 impl From<EventRow> for EventV1 {
@@ -177,7 +237,7 @@ impl From<EventRow> for EventV1 {
             hub_id: row.hub_id,
             source: serde_json::from_str(&format!("\"{}\"", row.source))
                 .unwrap_or_else(|e| {
-                    log::warn!(
+                    tracing::warn!(
                         "Invalid EventSource '{}' for event_id '{}': {}. Falling back to EventSource::System.",
                         row.source,
                         row.event_id,
@@ -188,7 +248,7 @@ impl From<EventRow> for EventV1 {
             event_type: row.event_type,
             severity: serde_json::from_str(&format!("\"{}\"", row.severity))
                 .unwrap_or_else(|e| {
-                    log::warn!(
+                    tracing::warn!(
                         "Invalid Severity '{}' for event_id '{}': {}. Falling back to Severity::Info.",
                         row.severity,
                         row.event_id,
@@ -201,6 +261,14 @@ impl From<EventRow> for EventV1 {
             media_ref: row.media_ref,
             tags: serde_json::from_str(&row.tags).unwrap_or_default(),
             schema_version: row.schema_version,
+            camera_id: row.camera_id,
+            face_id: row.face_id,
+            person_name: row.person_name,
+            confidence: row.confidence,
+            is_known: row.is_known.map(|v| v != 0),
+            bounding_box: row.bounding_box
+                .as_deref()
+                .and_then(|s| serde_json::from_str(s).ok()),
         }
     }
 }

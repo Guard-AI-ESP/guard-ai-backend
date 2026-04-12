@@ -47,6 +47,11 @@ async fn ingest_events(
         }
     };
 
+    // Diffusion vers les clients WebSocket (best-effort — échec silencieux sans abonné)
+    for event in &to_insert {
+        let _ = state.event_tx.send(event.clone());
+    }
+
     Json(IngestEventsResponse { accepted, rejected })
 }
 
