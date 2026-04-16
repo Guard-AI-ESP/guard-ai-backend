@@ -4,3 +4,8 @@
 /tests/output/
 /target/
 docs/dev/
+
+# SQLite database files
+*.db
+*.db-shm
+*.db-wal
