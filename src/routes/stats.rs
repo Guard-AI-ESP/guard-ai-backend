@@ -8,13 +8,8 @@ pub fn router() -> Router<SharedState> {
 
 /// GET /v1/stats — statistiques agrégées sur les événements
 async fn get_stats(State(state): State<SharedState>) -> Result<Json<EventStats>, StatusCode> {
-    state
-        .event_repo
-        .get_stats()
-        .await
-        .map(Json)
-        .map_err(|e| {
-            tracing::error!(error = %e, "failed to compute stats");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })
+    state.event_repo.get_stats().await.map(Json).map_err(|e| {
+        tracing::error!(error = %e, "failed to compute stats");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })
 }

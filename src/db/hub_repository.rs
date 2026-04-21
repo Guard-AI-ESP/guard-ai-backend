@@ -71,16 +71,11 @@ impl HubRepository {
     }
 
     /// Vérifie une clé API en clair contre le hash stocké. Utilisé pour l'auth WS du hub.
-    pub async fn verify_api_key(
-        &self,
-        id: &str,
-        api_key_plain: &str,
-    ) -> Result<bool, sqlx::Error> {
-        let row: Option<(String,)> =
-            sqlx::query_as("SELECT api_key_hash FROM hubs WHERE id = ?")
-                .bind(id)
-                .fetch_optional(&self.pool)
-                .await?;
+    pub async fn verify_api_key(&self, id: &str, api_key_plain: &str) -> Result<bool, sqlx::Error> {
+        let row: Option<(String,)> = sqlx::query_as("SELECT api_key_hash FROM hubs WHERE id = ?")
+            .bind(id)
+            .fetch_optional(&self.pool)
+            .await?;
 
         let Some((hash_stored,)) = row else {
             return Ok(false);

@@ -15,7 +15,10 @@ async fn register_hub(app: axum::Router, id: &str, api_key: &str) {
     let req = Request::builder()
         .method("POST")
         .uri("/v1/hubs")
-        .header("Authorization", format!("Bearer {}", test_jwt("admin@test.io")))
+        .header(
+            "Authorization",
+            format!("Bearer {}", test_jwt("admin@test.io")),
+        )
         .header("content-type", "application/json")
         .body(Body::from(
             json!({
@@ -54,7 +57,10 @@ async fn ws_hub_rejects_wrong_api_key() {
 
     let url = format!("ws://{addr}/ws/hub?hub_id=pi-hub-01&api_key=wrong");
     let result = connect_async(url).await;
-    assert!(result.is_err(), "WS handshake should fail with wrong api_key");
+    assert!(
+        result.is_err(),
+        "WS handshake should fail with wrong api_key"
+    );
 }
 
 #[tokio::test]
@@ -78,7 +84,10 @@ async fn ws_hub_receives_command_posted_over_http() {
     let http_req = Request::builder()
         .method("POST")
         .uri("/v1/hubs/pi-hub-01/commands")
-        .header("Authorization", format!("Bearer {}", test_jwt("admin@test.io")))
+        .header(
+            "Authorization",
+            format!("Bearer {}", test_jwt("admin@test.io")),
+        )
         .header("content-type", "application/json")
         .body(Body::from(
             json!({

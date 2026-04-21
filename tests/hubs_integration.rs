@@ -8,10 +8,18 @@ use serde_json::{json, Value};
 use tower::ServiceExt;
 
 fn auth_header() -> (String, String) {
-    ("Authorization".to_string(), format!("Bearer {}", test_jwt("admin@test.io")))
+    (
+        "Authorization".to_string(),
+        format!("Bearer {}", test_jwt("admin@test.io")),
+    )
 }
 
-async fn send(app: axum::Router, method: &str, path: &str, body: Option<Value>) -> (StatusCode, Value) {
+async fn send(
+    app: axum::Router,
+    method: &str,
+    path: &str,
+    body: Option<Value>,
+) -> (StatusCode, Value) {
     let (h, v) = auth_header();
     let req = Request::builder()
         .method(method)

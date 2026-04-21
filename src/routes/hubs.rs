@@ -2,9 +2,7 @@ use crate::models::command::{
     Command, CommandResponse, CommandStatus, CommandsListResponse, CreateCommandRequest,
     UpdateCommandRequest,
 };
-use crate::models::hub::{
-    CreateHubRequest, HeartbeatRequest, Hub, HubResponse, HubsListResponse,
-};
+use crate::models::hub::{CreateHubRequest, HeartbeatRequest, Hub, HubResponse, HubsListResponse};
 use crate::state::SharedState;
 use axum::{
     extract::{Path, Query, State},
@@ -23,7 +21,10 @@ pub fn router() -> Router<SharedState> {
             "/hubs/:id/commands",
             get(list_commands).post(create_command),
         )
-        .route("/hubs/:id/commands/:cmd_id", get(get_command).patch(update_command))
+        .route(
+            "/hubs/:id/commands/:cmd_id",
+            get(get_command).patch(update_command),
+        )
 }
 
 // ── Hubs CRUD ────────────────────────────────────────────────────────────────
@@ -69,7 +70,12 @@ async fn heartbeat(
 ) -> Result<Json<HubResponse>, StatusCode> {
     let hub = ensure_hub(&state, &id).await?;
     state.hub_repo.touch(&id).await.map_err(db_err)?;
-    let refreshed = state.hub_repo.find_by_id(&id).await.map_err(db_err)?.unwrap_or(hub);
+    let refreshed = state
+        .hub_repo
+        .find_by_id(&id)
+        .await
+        .map_err(db_err)?
+        .unwrap_or(hub);
     Ok(Json(HubResponse { hub: refreshed }))
 }
 
@@ -87,10 +93,7 @@ async fn list_commands(
 ) -> Result<Json<CommandsListResponse>, StatusCode> {
     ensure_hub(&state, &id).await?;
 
-    let status_filter = params
-        .status
-        .as_deref()
-        .and_then(CommandStatus::from_str);
+    let status_filter = params.status.as_deref().and_then(CommandStatus::parse);
 
     let commands = state
         .command_repo
@@ -160,7 +163,12 @@ async fn update_command(
 
     let updated = state
         .command_repo
-        .update_status(cmd_id, req.status, req.result.as_ref(), req.error.as_deref())
+        .update_status(
+            cmd_id,
+            req.status,
+            req.result.as_ref(),
+            req.error.as_deref(),
+        )
         .await
         .map_err(db_err)?
         .ok_or(StatusCode::NOT_FOUND)?;

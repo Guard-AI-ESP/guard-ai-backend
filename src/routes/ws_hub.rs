@@ -81,11 +81,7 @@ async fn stream_commands(mut socket: WebSocket, state: SharedState, hub_id: Stri
     tracing::info!(hub_id = %hub_id, "hub WS disconnected");
 }
 
-async fn deliver(
-    socket: &mut WebSocket,
-    state: &SharedState,
-    cmd: Command,
-) -> Result<(), String> {
+async fn deliver(socket: &mut WebSocket, state: &SharedState, cmd: Command) -> Result<(), String> {
     let json = serde_json::to_string(&cmd).map_err(|e| e.to_string())?;
     socket
         .send(Message::Text(json))

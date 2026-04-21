@@ -42,7 +42,6 @@ pub struct EventV1 {
     pub schema_version: String,
 
     // ── Champs de détection faciale (remplis uniquement pour source = camera) ──
-
     /// Identifiant de la caméra source (ex: "cam-entree-01")
     #[serde(skip_serializing_if = "Option::is_none")]
     pub camera_id: Option<String>,

@@ -126,8 +126,8 @@ impl CommandRepository {
         error: Option<&str>,
     ) -> Result<Option<Command>, sqlx::Error> {
         let result_json = result.map(|v| serde_json::to_string(v).unwrap_or_default());
-        let completed_at = matches!(status, CommandStatus::Succeeded | CommandStatus::Failed)
-            .then(now_iso);
+        let completed_at =
+            matches!(status, CommandStatus::Succeeded | CommandStatus::Failed).then(now_iso);
 
         sqlx::query(
             "UPDATE commands
@@ -170,11 +170,13 @@ impl TryFrom<CommandRow> for Command {
 
     fn try_from(r: CommandRow) -> Result<Self, Self::Error> {
         let id = Uuid::parse_str(&r.id).map_err(|_| ())?;
-        let command_type = CommandType::from_str(&r.kind).ok_or(())?;
-        let status = CommandStatus::from_str(&r.status).ok_or(())?;
+        let command_type = CommandType::parse(&r.kind).ok_or(())?;
+        let status = CommandStatus::parse(&r.status).ok_or(())?;
         let payload: Value = serde_json::from_str(&r.payload).unwrap_or(Value::Null);
-        let result: Option<Value> =
-            r.result.as_deref().and_then(|s| serde_json::from_str(s).ok());
+        let result: Option<Value> = r
+            .result
+            .as_deref()
+            .and_then(|s| serde_json::from_str(s).ok());
 
         Ok(Command {
             id,

@@ -21,7 +21,7 @@ impl CommandType {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "scan_network" => Some(CommandType::ScanNetwork),
             "block_device" => Some(CommandType::BlockDevice),
@@ -54,7 +54,7 @@ impl CommandStatus {
         }
     }
 
-    pub fn from_str(s: &str) -> Option<Self> {
+    pub fn parse(s: &str) -> Option<Self> {
         match s {
             "pending" => Some(CommandStatus::Pending),
             "dispatched" => Some(CommandStatus::Dispatched),

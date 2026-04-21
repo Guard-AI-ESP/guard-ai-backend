@@ -17,8 +17,7 @@ pub async fn require_jwt(
     req: Request,
     next: Next,
 ) -> Result<Response, StatusCode> {
-    let token = extract_bearer_token(req.headers())
-        .ok_or(StatusCode::UNAUTHORIZED)?;
+    let token = extract_bearer_token(req.headers()).ok_or(StatusCode::UNAUTHORIZED)?;
 
     decode::<Claims>(
         token,

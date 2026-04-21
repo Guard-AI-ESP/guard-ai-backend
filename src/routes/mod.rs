@@ -14,9 +14,7 @@ use axum::Router;
 
 /// Routes publiques — pas d'authentification requise
 pub fn public_router() -> Router<SharedState> {
-    Router::new()
-        .merge(health::router())
-        .merge(auth::router())
+    Router::new().merge(health::router()).merge(auth::router())
 }
 
 /// Routes protégées par JWT

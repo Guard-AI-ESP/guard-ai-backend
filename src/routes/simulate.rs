@@ -19,14 +19,10 @@ async fn simulate_events(
     let count = req.count.min(100) as usize;
     let events = build_fake_events(count);
 
-    let generated = state
-        .event_repo
-        .insert_batch(&events)
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "simulate insert failed");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let generated = state.event_repo.insert_batch(&events).await.map_err(|e| {
+        tracing::error!(error = %e, "simulate insert failed");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     // Diffusion vers les clients WebSocket connectés (best-effort)
     for event in &events {
@@ -41,8 +37,8 @@ async fn simulate_events(
 /// Génère `count` événements avec des données réalistes mais aléatoires
 fn build_fake_events(count: usize) -> Vec<EventV1> {
     let mut rng = rand::thread_rng();
-    let demo_site_id = Uuid::parse_str("00000000-0000-0000-0000-000000000001")
-        .expect("static UUID is valid");
+    let demo_site_id =
+        Uuid::parse_str("00000000-0000-0000-0000-000000000001").expect("static UUID is valid");
 
     (0..count)
         .map(|_| {
@@ -143,7 +139,12 @@ fn build_detection_fields(
 }
 
 fn random_camera_id(rng: &mut impl Rng) -> String {
-    let cameras = ["cam-entree-01", "cam-garage-01", "cam-portail-01", "cam-couloir-01"];
+    let cameras = [
+        "cam-entree-01",
+        "cam-garage-01",
+        "cam-portail-01",
+        "cam-couloir-01",
+    ];
     cameras[rng.gen_range(0..cameras.len())].to_string()
 }
 

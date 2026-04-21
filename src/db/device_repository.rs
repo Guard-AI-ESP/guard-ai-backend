@@ -59,12 +59,11 @@ impl DeviceRepository {
         }
 
         // 3) compte les connectés
-        let (count,): (i64,) = sqlx::query_as(
-            "SELECT COUNT(*) FROM devices WHERE hub_id = ? AND connected = 1",
-        )
-        .bind(hub_id)
-        .fetch_one(&mut *tx)
-        .await?;
+        let (count,): (i64,) =
+            sqlx::query_as("SELECT COUNT(*) FROM devices WHERE hub_id = ? AND connected = 1")
+                .bind(hub_id)
+                .fetch_one(&mut *tx)
+                .await?;
 
         tx.commit().await?;
         Ok(count as usize)
