@@ -25,11 +25,7 @@ fn create_person_body(name: &str) -> String {
 
 // ── Helpers HTTP ──────────────────────────────────────────────────────────────
 
-async fn post_person(
-    app: axum::Router,
-    token: &str,
-    body: &str,
-) -> axum::response::Response {
+async fn post_person(app: axum::Router, token: &str, body: &str) -> axum::response::Response {
     app.oneshot(
         Request::builder()
             .method("POST")
@@ -135,10 +131,9 @@ async fn test_delete_person_happy_path() {
     // Créer une personne
     let create_resp = post_person(app.clone(), &token, &create_person_body("Claire")).await;
     assert_eq!(create_resp.status(), StatusCode::CREATED);
-    let body: Value = serde_json::from_slice(
-        &create_resp.into_body().collect().await.unwrap().to_bytes(),
-    )
-    .unwrap();
+    let body: Value =
+        serde_json::from_slice(&create_resp.into_body().collect().await.unwrap().to_bytes())
+            .unwrap();
     let id = body["person"]["id"].as_str().unwrap().to_string();
 
     // Supprimer

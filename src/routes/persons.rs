@@ -18,14 +18,10 @@ pub fn router() -> Router<SharedState> {
 async fn list_persons(
     State(state): State<SharedState>,
 ) -> Result<Json<PersonsListResponse>, StatusCode> {
-    let persons = state
-        .person_repo
-        .find_all()
-        .await
-        .map_err(|e| {
-            tracing::error!(error = %e, "list_persons db error");
-            StatusCode::INTERNAL_SERVER_ERROR
-        })?;
+    let persons = state.person_repo.find_all().await.map_err(|e| {
+        tracing::error!(error = %e, "list_persons db error");
+        StatusCode::INTERNAL_SERVER_ERROR
+    })?;
 
     let count = persons.len();
     Ok(Json(PersonsListResponse { persons, count }))
@@ -45,11 +41,7 @@ async fn create_person(
 
     let person = state
         .person_repo
-        .insert(
-            req.name.trim(),
-            &req.embedding,
-            req.photo_url.as_deref(),
-        )
+        .insert(req.name.trim(), &req.embedding, req.photo_url.as_deref())
         .await
         .map_err(|e| {
             tracing::error!(error = %e, "create_person db error");
@@ -61,10 +53,7 @@ async fn create_person(
 }
 
 /// DELETE /v1/persons/:id — supprime une personne par son UUID
-async fn delete_person(
-    State(state): State<SharedState>,
-    Path(id): Path<Uuid>,
-) -> StatusCode {
+async fn delete_person(State(state): State<SharedState>, Path(id): Path<Uuid>) -> StatusCode {
     match state.person_repo.delete(id).await {
         Ok(true) => {
             tracing::info!(%id, "person deleted");

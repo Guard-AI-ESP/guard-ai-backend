@@ -14,13 +14,11 @@ impl UserRepository {
 
     /// Crée un nouvel utilisateur — retourne l'ID inséré
     pub async fn create(&self, email: &str, password_hash: &str) -> Result<i64, sqlx::Error> {
-        let result = sqlx::query(
-            "INSERT INTO users (email, password_hash) VALUES (?, ?)",
-        )
-        .bind(email)
-        .bind(password_hash)
-        .execute(&self.pool)
-        .await?;
+        let result = sqlx::query("INSERT INTO users (email, password_hash) VALUES (?, ?)")
+            .bind(email)
+            .bind(password_hash)
+            .execute(&self.pool)
+            .await?;
 
         Ok(result.last_insert_rowid())
     }
@@ -39,11 +37,10 @@ impl UserRepository {
 
     /// Vérifie si un email est déjà pris
     pub async fn email_exists(&self, email: &str) -> Result<bool, sqlx::Error> {
-        let (count,): (i64,) =
-            sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = ?")
-                .bind(email)
-                .fetch_one(&self.pool)
-                .await?;
+        let (count,): (i64,) = sqlx::query_as("SELECT COUNT(*) FROM users WHERE email = ?")
+            .bind(email)
+            .fetch_one(&self.pool)
+            .await?;
 
         Ok(count > 0)
     }

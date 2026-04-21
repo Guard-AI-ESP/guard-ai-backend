@@ -17,7 +17,10 @@ async fn register(
 ) -> Result<Json<AuthResponse>, (StatusCode, Json<serde_json::Value>)> {
     // Validation minimale
     if req.email.trim().is_empty() || req.password.len() < 6 {
-        return Err(error(StatusCode::UNPROCESSABLE_ENTITY, "email requis et mot de passe >= 6 caractères"));
+        return Err(error(
+            StatusCode::UNPROCESSABLE_ENTITY,
+            "email requis et mot de passe >= 6 caractères",
+        ));
     }
 
     // Vérifier unicité de l'email
@@ -102,10 +105,7 @@ async fn login(
 }
 
 /// Construit un JWT signé pour l'email donné
-fn build_jwt(
-    email: &str,
-    secret: &str,
-) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
+fn build_jwt(email: &str, secret: &str) -> Result<String, (StatusCode, Json<serde_json::Value>)> {
     let now = SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .unwrap_or_default()
