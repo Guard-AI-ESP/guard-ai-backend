@@ -1,4 +1,8 @@
-use crate::db::{DbPool, EventRepository, PersonRepository, UserRepository};
+use crate::db::{
+    CommandRepository, DbPool, DeviceRepository, EventRepository, HubRepository, PersonRepository,
+    UserRepository,
+};
+use crate::models::command::Command;
 use crate::models::event::EventV1;
 use std::sync::Arc;
 use tokio::sync::broadcast;
@@ -15,8 +19,14 @@ pub struct AppState {
     pub event_repo: EventRepository,
     pub person_repo: PersonRepository,
     pub user_repo: UserRepository,
+    pub hub_repo: HubRepository,
+    pub device_repo: DeviceRepository,
+    pub command_repo: CommandRepository,
     /// Canal de diffusion des nouveaux événements vers les clients WebSocket
     pub event_tx: broadcast::Sender<EventV1>,
+    /// Canal de diffusion des nouvelles commandes vers les hubs connectés.
+    /// Chaque hub-agent filtre sur son propre `hub_id` côté WS.
+    pub command_tx: broadcast::Sender<Command>,
     /// Clé secrète pour signer/vérifier les JWT
     pub jwt_secret: String,
     /// Clé API pour l'accès machine-to-machine (IoT, services).
@@ -36,11 +46,16 @@ impl AppState {
     /// Constructeur explicite — utile dans les tests pour contrôler la config
     pub fn with_config(pool: DbPool, jwt_secret: String, api_key: Option<String>) -> Self {
         let (event_tx, _) = broadcast::channel(WS_CHANNEL_CAPACITY);
+        let (command_tx, _) = broadcast::channel(WS_CHANNEL_CAPACITY);
         Self {
             event_repo: EventRepository::new(pool.clone()),
             person_repo: PersonRepository::new(pool.clone()),
-            user_repo: UserRepository::new(pool),
+            user_repo: UserRepository::new(pool.clone()),
+            hub_repo: HubRepository::new(pool.clone()),
+            device_repo: DeviceRepository::new(pool.clone()),
+            command_repo: CommandRepository::new(pool),
             event_tx,
+            command_tx,
             jwt_secret,
             api_key,
         }

@@ -1,6 +1,8 @@
 pub mod auth;
+pub mod devices;
 pub mod events;
 pub mod health;
+pub mod hubs;
 pub mod persons;
 pub mod simulate;
 pub mod stats;
@@ -23,6 +25,8 @@ pub fn protected_router() -> Router<SharedState> {
         .merge(persons::router())
         .merge(stats::router())
         .merge(simulate::router())
+        .merge(hubs::router())
+        .merge(devices::router())
 }
 
 /// Routes WebSocket — auth par query param `?token=`
