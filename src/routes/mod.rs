@@ -7,6 +7,7 @@ pub mod persons;
 pub mod simulate;
 pub mod stats;
 pub mod ws;
+pub mod ws_hub;
 
 use crate::state::SharedState;
 use axum::Router;
@@ -29,7 +30,7 @@ pub fn protected_router() -> Router<SharedState> {
         .merge(devices::router())
 }
 
-/// Routes WebSocket — auth par query param `?token=`
+/// Routes WebSocket — auth par query param (`?token=` côté front, `?api_key=` côté hub).
 pub fn ws_router() -> Router<SharedState> {
-    ws::router()
+    Router::new().merge(ws::router()).merge(ws_hub::router())
 }
