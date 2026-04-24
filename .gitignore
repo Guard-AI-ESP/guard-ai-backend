@@ -1,5 +1,9 @@
 .DS_Store
 
+# Variables d'environnement — ne jamais committer
+.env
+.env.local
+
 # Ignore test output files
 /tests/output/
 /target/
